@@ -5,7 +5,7 @@ import csv, math, json, random
 from datetime import datetime
 from collections import defaultdict, deque
 import numpy as np
-from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 
 # (results.csv-Name, deutscher Name, Gruppe, kuratiertes Elo-Prior)
 TEAMS = [
@@ -45,7 +45,7 @@ def build_and_train():
     gf = defaultdict(lambda: deque(maxlen=10)); ga = defaultdict(lambda: deque(maxlen=10))
     res = defaultdict(lambda: deque(maxlen=10)); last = {}; npl = defaultdict(int)
     sos = defaultdict(lambda: deque(maxlen=10)); streak = defaultdict(int)  # v2: Spielplan-Stärke + Streak
-    X, y = [], []
+    X, y, yh, ya = [], [], [], []  # yh/ya = Heim-/Auswärts-Tore für die Tor-Regressoren
     avg = lambda dq, df: sum(dq) / len(dq) if dq else df
     def feat(h, a, neu, comp, rh, ra):
         return [slow[h]-slow[a], (fast[h]-slow[h])-(fast[a]-slow[a]), 0 if neu else 1, comp,
@@ -57,6 +57,7 @@ def build_and_train():
         comp = 0 if "Friendly" in tour else 1
         rh = min(60,(d-last[h]).days) if h in last else 30; ra = min(60,(d-last[a]).days) if a in last else 30
         X.append(feat(h,a,neu,comp,rh,ra)); y.append(0 if hs>as_ else (1 if hs==as_ else 2))
+        yh.append(min(hs,7)); ya.append(min(as_,7))  # bei 7 deckeln (Ausreißer dämpfen)
         We = 1/(1+10**(-(slow[h]-slow[a]+(0 if neu else 65))/400)); Sa = 1 if hs>as_ else (0.5 if hs==as_ else 0)
         gd = abs(hs-as_); mult = 1 if gd<=1 else (1.5 if gd==2 else 1.75+(gd-3)/8)
         for elo, kk in ((slow,24),(fast,64)): dl=kk*mult*(Sa-We); elo[h]+=dl; elo[a]-=dl
@@ -66,25 +67,34 @@ def build_and_train():
         streak[h] = streak[h]+1 if hs>as_ else (streak[h]-1 if hs<as_ else 0)
         streak[a] = streak[a]+1 if as_>hs else (streak[a]-1 if as_<hs else 0)
         last[h]=d; last[a]=d; npl[h]+=1; npl[a]+=1
+    Xa = np.array(X)
     clf = HistGradientBoostingClassifier(max_iter=400, learning_rate=0.05, max_depth=4,
                                          l2_regularization=1.0, min_samples_leaf=50, random_state=0)
-    clf.fit(np.array(X), np.array(y))
+    clf.fit(Xa, np.array(y))
+    # Tor-Regressoren (gleiche Features) → erwartete Tore aus ML statt Elo-Schätzer
+    rgh = HistGradientBoostingRegressor(max_iter=300, learning_rate=0.05, max_depth=4, min_samples_leaf=60, random_state=0)
+    rga = HistGradientBoostingRegressor(max_iter=300, learning_rate=0.05, max_depth=4, min_samples_leaf=60, random_state=0)
+    rgh.fit(Xa, np.array(yh)); rga.fit(Xa, np.array(ya))
     # Seed schwacher Teams (sparse Historie) mit kuratiertem Prior, damit WM-Staerken stimmen
     for en, pr in PRIOR.items():
         if npl[en] < 8: slow[en] = pr; fast[en] = pr
-    state = dict(slow=slow, fast=fast, gf=gf, ga=ga, res=res, npl=npl, avg=avg, feat=feat)
+    state = dict(slow=slow, fast=fast, gf=gf, ga=ga, res=res, npl=npl, avg=avg, feat=feat, rgh=rgh, rga=rga)
     return clf, state
 
 def pairwise(clf, st):
-    P = {}
+    P, G = {}, {}
     rows, keys = [], []
     for en1, _, _, _ in TEAMS:
         for en2, _, _, _ in TEAMS:
             if en1 == en2: continue
             rows.append(st["feat"](en1, en2, True, 1, 5, 5)); keys.append((en1, en2))
-    probs = clf.predict_proba(np.array(rows))
-    for (k, p) in zip(keys, probs): P[k] = p  # [W,D,L] aus Sicht en1
-    return P
+    Xr = np.array(rows)
+    probs = clf.predict_proba(Xr)
+    gh = st["rgh"].predict(Xr); ga = st["rga"].predict(Xr)  # erwartete Tore (ML)
+    for i, k in enumerate(keys):
+        P[k] = probs[i]                                      # [W,D,L] aus Sicht en1
+        G[k] = (max(0.1, float(gh[i])), max(0.1, float(ga[i])))
+    return P, G
 
 def sim(P, rng):
     firsts=[]; seconds=[]; thirds=[]
@@ -112,7 +122,7 @@ def sim(P, rng):
 
 if __name__ == "__main__":
     clf, st = build_and_train()
-    P = pairwise(clf, st)
+    P, G = pairwise(clf, st)
     rng = random.Random(12345); N = 5000; title = defaultdict(int)
     for _ in range(N): title[sim(P, rng)] += 1
     title_de = {EN2DE[en]: c / N for en, c in title.items()}
@@ -127,9 +137,11 @@ if __name__ == "__main__":
     # Volle Paarungstabelle (deutsche Namen) — treibt die GANZE Frontend-Engine (Gruppen/Spiel/Durchlauf/MC)
     pairs = {f"{EN2DE[a]}|{EN2DE[b]}": [round(float(p[0]),4), round(float(p[1]),4), round(float(p[2]),4)]
              for (a, b), p in P.items()}
+    # Erwartete Tore je Paarung (ML-Regressoren) → ML-Ergebnis-Anzeige statt Elo-Schätzer
+    goals = {f"{EN2DE[a]}|{EN2DE[b]}": [round(G[(a,b)][0],2), round(G[(a,b)][1],2)] for (a, b) in P}
     out = {"title": {k: round(v,4) for k,v in sorted(title_de.items(), key=lambda x:-x[1])},
-           "matches": matches, "pairs": pairs,
-           "source": "HistGradientBoosting ML (10 Features), Monte-Carlo "+str(N)}
+           "matches": matches, "pairs": pairs, "goals": goals,
+           "source": "HistGradientBoosting ML (12 Features) + Tor-Regressoren, Monte-Carlo "+str(N)}
     json.dump(out, open("data/ml.json","w"), ensure_ascii=False, indent=1)
     top = sorted(title_de.items(), key=lambda x:-x[1])[:8]
     print("  ml.json geschrieben.")
