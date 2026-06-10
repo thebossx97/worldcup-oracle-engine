@@ -118,13 +118,18 @@ def sim(P, rng):
             a,b=rnd[i],rnd[i+1]; w,dr,l=P[(a,b)]; pw=w+dr*0.5  # K.o.: Remis per Coin
             nxt.append(a if rng.random()<pw/(pw+(l+dr*0.5)) else b)
         rnd=nxt
-    return rnd[0]
+    return rnd[0], [f[1] for f in firsts], seeds  # Champ, Gruppensieger, 32 Qualifizierte (inkl. beste Dritte)
 
 if __name__ == "__main__":
     clf, st = build_and_train()
     P, G = pairwise(clf, st)
-    rng = random.Random(12345); N = 5000; title = defaultdict(int)
-    for _ in range(N): title[sim(P, rng)] += 1
+    rng = random.Random(12345); N = 5000
+    title = defaultdict(int); gw = defaultdict(int); adv = defaultdict(int)
+    for _ in range(N):
+        champ, gwin, advn = sim(P, rng)
+        title[champ] += 1
+        for t in gwin: gw[t] += 1
+        for t in advn: adv[t] += 1
     title_de = {EN2DE[en]: c / N for en, c in title.items()}
     # Spiel-Prognosen je Gruppenspiel (ML W/U/N)
     matches = []
@@ -139,8 +144,10 @@ if __name__ == "__main__":
              for (a, b), p in P.items()}
     # Erwartete Tore je Paarung (ML-Regressoren) → ML-Ergebnis-Anzeige statt Elo-Schätzer
     goals = {f"{EN2DE[a]}|{EN2DE[b]}": [round(G[(a,b)][0],2), round(G[(a,b)][1],2)] for (a, b) in P}
+    # Gruppen-Wahrscheinlichkeiten je Team: [P(Gruppensieg), P(weiter = K.o.-Phase, inkl. beste Dritte)]
+    groupstats = {EN2DE[en]: [round(gw[en]/N,3), round(adv[en]/N,3)] for en,_,_,_ in TEAMS}
     out = {"title": {k: round(v,4) for k,v in sorted(title_de.items(), key=lambda x:-x[1])},
-           "matches": matches, "pairs": pairs, "goals": goals,
+           "matches": matches, "pairs": pairs, "goals": goals, "groupstats": groupstats,
            "source": "HistGradientBoosting ML (12 Features) + Tor-Regressoren, Monte-Carlo "+str(N)}
     json.dump(out, open("data/ml.json","w"), ensure_ascii=False, indent=1)
     top = sorted(title_de.items(), key=lambda x:-x[1])[:8]
