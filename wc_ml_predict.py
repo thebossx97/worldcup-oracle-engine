@@ -44,12 +44,15 @@ def build_and_train():
     slow = defaultdict(lambda: 1500.0); fast = defaultdict(lambda: 1500.0)
     gf = defaultdict(lambda: deque(maxlen=10)); ga = defaultdict(lambda: deque(maxlen=10))
     res = defaultdict(lambda: deque(maxlen=10)); last = {}; npl = defaultdict(int)
+    sos = defaultdict(lambda: deque(maxlen=10)); streak = defaultdict(int)  # v2: Spielplan-Stärke + Streak
     X, y = [], []
     avg = lambda dq, df: sum(dq) / len(dq) if dq else df
     def feat(h, a, neu, comp, rh, ra):
         return [slow[h]-slow[a], (fast[h]-slow[h])-(fast[a]-slow[a]), 0 if neu else 1, comp,
                 avg(gf[h],1.2)-avg(gf[a],1.2), avg(ga[h],1.2)-avg(ga[a],1.2),
-                avg(res[h],0.5)-avg(res[a],0.5), rh-ra, min(npl[h],30), min(npl[a],30)]
+                avg(res[h],0.5)-avg(res[a],0.5), rh-ra, min(npl[h],30), min(npl[a],30),
+                avg(sos[h],1500)-avg(sos[a],1500),                              # v2: Stärke des Spielplans
+                max(-5,min(5,streak[h]))-max(-5,min(5,streak[a]))]              # v2: Sieges-/Niederlagen-Streak
     for (d, h, a, hs, as_, neu, tour) in M:
         comp = 0 if "Friendly" in tour else 1
         rh = min(60,(d-last[h]).days) if h in last else 30; ra = min(60,(d-last[a]).days) if a in last else 30
@@ -58,7 +61,11 @@ def build_and_train():
         gd = abs(hs-as_); mult = 1 if gd<=1 else (1.5 if gd==2 else 1.75+(gd-3)/8)
         for elo, kk in ((slow,24),(fast,64)): dl=kk*mult*(Sa-We); elo[h]+=dl; elo[a]-=dl
         gf[h].append(hs); ga[h].append(as_); gf[a].append(as_); ga[a].append(hs)
-        res[h].append(Sa); res[a].append(1-Sa); last[h]=d; last[a]=d; npl[h]+=1; npl[a]+=1
+        res[h].append(Sa); res[a].append(1-Sa)
+        sos[h].append(slow[a]); sos[a].append(slow[h])  # Gegner-Stärke (post-Update)
+        streak[h] = streak[h]+1 if hs>as_ else (streak[h]-1 if hs<as_ else 0)
+        streak[a] = streak[a]+1 if as_>hs else (streak[a]-1 if as_<hs else 0)
+        last[h]=d; last[a]=d; npl[h]+=1; npl[a]+=1
     clf = HistGradientBoostingClassifier(max_iter=400, learning_rate=0.05, max_depth=4,
                                          l2_regularization=1.0, min_samples_leaf=50, random_state=0)
     clf.fit(np.array(X), np.array(y))
