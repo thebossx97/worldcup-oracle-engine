@@ -18,3 +18,11 @@ python3 backtest.py      # Backtest + Parameter-Suche
 Disziplin: jedes neue Feature MUSS den Backtest-Log-Loss verbessern, sonst raus.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+## ⚖️ CLV-Backtest — der ehrliche „besser als der Markt"-Test (Phase: Wahrheit)
+Unabhängiges Elo→Poisson-Modell vs. **Pinnacle Closing Line** (schärfste Quote der Welt), 12.5k Vereins-Spiele, Held-out 2023+ (4.571 Spiele):
+- Log-Loss Modell **1.0199** vs Closing **0.9644** → die Closing-Line schlägt das Modell (kein Edge).
+- Value-Wetten zu Closing-Odds: **ROI −6,0 %** (≈ Buchmacher-Marge — wir zahlen nur den Spread).
+- Favorite-Longshot-Bias: Markt ist über die ganze Spanne **quasi perfekt kalibriert** (impliz ≈ real).
+
+**Fazit (ehrlich):** Mit einem simplen Modell + öffentlichen Daten schlägt man den scharfen Markt NICHT — und jetzt ist es BEWIESEN statt behauptet. Ein echter Edge bräuchte: schnellere Daten (News/Aufstellung vor der Linienbewegung), genuin neue Features, oder weniger effiziente Märkte (Unterligen/In-Play) — NICHT die WM-Hauptmärkte. Das CLV-Harness würde jeden echten Edge sofort erkennen, wenn wir je ein echtes Signal hinzufügen.
