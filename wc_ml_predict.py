@@ -117,8 +117,12 @@ if __name__ == "__main__":
                 a, b = teams[i], teams[j]; w, dr, l = P[(a, b)]
                 matches.append({"group": g, "home": EN2DE[a], "away": EN2DE[b],
                                 "w": round(float(w),3), "d": round(float(dr),3), "l": round(float(l),3)})
+    # Volle Paarungstabelle (deutsche Namen) — treibt die GANZE Frontend-Engine (Gruppen/Spiel/Durchlauf/MC)
+    pairs = {f"{EN2DE[a]}|{EN2DE[b]}": [round(float(p[0]),4), round(float(p[1]),4), round(float(p[2]),4)]
+             for (a, b), p in P.items()}
     out = {"title": {k: round(v,4) for k,v in sorted(title_de.items(), key=lambda x:-x[1])},
-           "matches": matches, "source": "HistGradientBoosting ML (10 Features), Monte-Carlo "+str(N)}
+           "matches": matches, "pairs": pairs,
+           "source": "HistGradientBoosting ML (10 Features), Monte-Carlo "+str(N)}
     json.dump(out, open("data/ml.json","w"), ensure_ascii=False, indent=1)
     top = sorted(title_de.items(), key=lambda x:-x[1])[:8]
     print("  ml.json geschrieben.")
