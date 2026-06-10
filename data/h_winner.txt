@@ -1,0 +1,18 @@
+HTTP/2 200 
+content-type: application/json; charset=utf-8
+content-length: 5184
+date: Wed, 10 Jun 2026 19:21:16 GMT
+x-amzn-trace-id: Root=1-6a29b92c-41fa8a384936a3cb79612fdd;Parent=421df4913c102a00;Sampled=0;Lineage=1:92ec0d90:0
+x-amzn-requestid: fe139ac4-9a18-4d8e-b2f0-3e327bd37e7f
+x-requests-remaining: 499
+x-amzn-remapped-content-length: 5184
+x-requests-last: 1
+x-requests-used: 1
+vary: Accept-Encoding
+x-cache: Miss from cloudfront
+via: 1.1 7ca1f888e55cc20dcbd40691cd7e4e84.cloudfront.net (CloudFront)
+x-amz-cf-pop: FRA60-P13
+alt-svc: h3=":443"; ma=86400
+x-amz-cf-id: TsRwwmEDIXF2o1bAk18lyfdHZP7FAaV7sZw2x1dI9ytzAL-q0inUUw==
+vary: Origin
+
